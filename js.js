@@ -1,5 +1,5 @@
 const gameBoard = (function(){
-    const board = [];
+    let board = [];
 
     for (let i = 0; i < 3; i++) {
         board[i] = [];
@@ -8,12 +8,22 @@ const gameBoard = (function(){
         };
     };
 
+    const resetBoard = () => {
+        board = [];
+        for (let i = 0; i < 3; i++) {
+            board[i] = [];
+            for (let j = 0; j < 3; j++) {
+                board[i].push(Cell());
+            };
+        };
+    }
+
     const getBoard = () => board;
 
     const placeMark = (column, row, player) => {
         if (board[row][column].getValue() !== "") {
             console.log("INVALID MOVE!");
-            return
+            return 'invalid';
         };
 
         board[row][column].addMark(player);
@@ -33,21 +43,21 @@ const gameBoard = (function(){
         for (let i = 0; i < 3; i++) {
             for (let j = 0; j < 3; j++) {
                 if (board[i][j].getValue() === player) row[i]++;
-                if (row[i] === 3) return 5;
+                if (row[i] === 3) return 'win';
                 if (board[j][i].getValue() === player) column[i]++;
-                if (column[i] === 3) return 5;
+                if (column[i] === 3) return 'win';
                 if (i === 0) {
                     if (board[j][j].getValue() === player)  diagonalA[i]++;
                     if (board[2-j][j].getValue() === player) diagonalB[i]++;
-                    if (diagonalA[i] === 3 || diagonalB[i] === 3) return 5;
+                    if (diagonalA[i] === 3 || diagonalB[i] === 3) return 'win';
                 };
                 if (board[i][j].getValue() === 'X' || board[i][j].getValue() === 'O' ) draw++;
             };
         };
-        if (draw === 9) return 2;
+        if (draw === 9) return 'draw';
     };
 
-    return {getBoard, placeMark, printBoard, check3Inline}
+    return {getBoard, placeMark, printBoard, check3Inline, resetBoard}
 })();
 
 function Cell (){
@@ -62,26 +72,52 @@ function Cell (){
     return {addMark, getValue}
 }
 
-const Game = (function (playerOneName = 'player one', playerTwoName = 'player two'){
+const Game = (function (){
+    
 
-    const players = [
+    let players = [
         {
-            name: playerOneName,
+            name: "X",
             mark: "X",
+            active: true,
         },
         {
-            name:playerTwoName,
+            name: "O",
             mark: "O",
+            active: false,
         }
     ];
 
-    let activePlayer = players[0];
+    const addPlayers = (playerOneName, playerTwoName) => {
+        if (playerOneName === '' || playerOneName == undefined) {
+            playerOneName = "X";
+        };
+        if (playerTwoName === '' || playerTwoName == undefined) {
+            playerTwoName = "O";
+        };
+        players[0].name = playerOneName;
+        players[1].name = playerTwoName;
+    }
+
+    
 
     const switchPlayerTurn = () => {
-        activePlayer = activePlayer === players[0] ? players[1] : players[0];
+        if (players[0].active === true) {
+            players[0].active = false;
+            players[1].active = true;
+        } else {
+            players[1].active = false;
+            players[0].active = true;
+        }
     };
 
-    const getActivePlayer = () => activePlayer;
+    const getActivePlayer = () => {
+        if (players[0].active === true) {
+            return players[0];
+        } else {
+            return players[1];
+        };
+    };
 
     const printNewRound = () => {
         gameBoard.printBoard();
@@ -91,26 +127,31 @@ const Game = (function (playerOneName = 'player one', playerTwoName = 'player tw
     const playRound = (row, column) => {
         console.log(`placing ${getActivePlayer().name}'s mark at row ${row} column ${column}...`);
 
-        gameBoard.placeMark(column, row, getActivePlayer().mark);
+        if (gameBoard.placeMark(column, row, getActivePlayer().mark) === 'invalid') return
 
         switch (gameBoard.check3Inline(getActivePlayer().mark)) {
-            case 5:
+            case 'win':
                 console.log(`${getActivePlayer().name} WINS!!!!!!!!!`);
                 gameBoard.printBoard();
-                return;
-            case 2:
+                return 'win'
+            case 'draw':
                 console.log(`ITS A DRAW!!!!!!!`);
                 gameBoard.printBoard();
-                return;
+                return 'draw'
         } 
-
         switchPlayerTurn();
         printNewRound();
     };
 
+    const resetGame = () => {
+        if (getActivePlayer().mark === "O") switchPlayerTurn();
+        printNewRound();
+
+    }
+
     printNewRound();
 
-    return {playRound, getActivePlayer};
+    return {playRound, getActivePlayer, resetGame, addPlayers};
 })();
 
 function Player (){
@@ -119,6 +160,75 @@ function Player (){
 };
 
 const displayController = (function(){
+    const boardDiv = document.querySelector(".board");
+    const turnDiv = document.querySelector(".whosTurn");
+    const resetButton = document.querySelector("#reset");
+    const Xs_name = document.querySelector("#Xs_name");
+    const Os_name = document.querySelector("#Os_name");
 
-    return {};
+    const playerOneName = () => Xs_name.value;
+    const playerTwoName = () => Os_name.value;
+
+    const updateScreen = () => {
+        boardDiv.textContent = "";
+
+        const board = gameBoard.getBoard();
+
+        turnDiv.textContent = `${Game.getActivePlayer().name}'s turn...`;
+
+        for (let i = 0; i < 3; i++) {
+            
+            for (let j = 0; j < 3; j++) {
+                const cellButton = document.createElement("button");
+                cellButton.classList.add("cell");
+
+                cellButton.dataset.column = j;
+                cellButton.dataset.row = i;
+                cellButton.textContent = board[i][j].getValue();
+                boardDiv.appendChild(cellButton);
+            };
+        };
+    };
+
+    function clickHandlerBoard(e) {
+        const selectedColumn = e.target.dataset.column; 
+        const selectedRow = e.target.dataset.row;
+
+        if (!selectedColumn || !selectedRow) return;
+
+        switch (Game.playRound(selectedRow, selectedColumn)) {
+            case 'win':
+                updateScreen();
+                turnDiv.textContent = `${Game.getActivePlayer().name} WINS!!!!!!!!!`;
+                setTimeout(() => {clickHandlerResetButton()}, 3000);
+                break
+            case 'draw':
+                updateScreen();
+                turnDiv.textContent = `ITS A DRAW!!!!!!!`;
+                setTimeout(() => {clickHandlerResetButton()}, 3000);
+                break
+            default:
+                updateScreen();
+                break
+        }
+    }
+
+    function clickHandlerResetButton(e) {
+        gameBoard.resetBoard();
+        Game.addPlayers(playerOneName(), playerTwoName());
+        Game.resetGame();
+        updateScreen();
+    }
+    Xs_name.addEventListener("keyup", () => {
+        Game.addPlayers(playerOneName(), playerTwoName())
+        turnDiv.textContent = `${Game.getActivePlayer().name}'s turn...`;
+    });
+    Os_name.addEventListener("keyup", () => {
+        Game.addPlayers(playerOneName(), playerTwoName());
+        turnDiv.textContent = `${Game.getActivePlayer().name}'s turn...`;
+    });
+    boardDiv.addEventListener("click", clickHandlerBoard);
+    resetButton.addEventListener("click", clickHandlerResetButton);
+
+    updateScreen();
 })();
